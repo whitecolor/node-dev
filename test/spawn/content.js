@@ -1,10 +1,14 @@
+const { readFile, writeFile } = require('fs/promises');
+const { join } = require('path');
 const tap = require('tap');
 
 const { spawn, touchFile } = require('../utils');
-const { changeFile, revertFile, revertFileImmediate } = require('../change-file');
+
+const replaceInFile = (path, from, to) =>
+  readFile(path, 'utf-8').then(contents => writeFile(path, contents.replace(from, to)));
 
 tap.test('should not restart with --content on file touch', t => {
-  const ps = spawn('--content server.js', out => {
+  const ps = spawn('--content=message-content.js server.js', out => {
     if (out.match(/touch message.js/)) {
       touchFile('message-content.js');
       const exitTimeout = setTimeout(() => {
@@ -13,33 +17,30 @@ tap.test('should not restart with --content on file touch', t => {
       }, 1500);
       return out2 => {
         clearTimeout(exitTimeout);
-        if (out2.match(/Restarting/)) {
-          return { exit: t.fail.bind(t) };
-        } else {
-          return { exit: t.end.bind(t) };
-        }
+        if (out2.match(/Restarting/)) return { exit: t.fail.bind(t) };
       };
     }
   });
 });
 
 tap.test('should restart the server with --content twice', t => {
-  revertFileImmediate('message-content.js');
-  spawn('--content server.js', out => {
-    console.log('out', out);
-    if (out.match(/change message-content.js/)) {
-      changeFile('message-content.js');
-      return out2 => {
-        console.log('out2', out2);
-        if (out2.match(/Restarting/)) {
-          revertFile('message-content.js');
-          return out3 => {
-            if (out3.match(/Restarting/)) {
-              return { exit: t.end.bind(t) };
-            }
-          };
-        }
-      };
-    }
+  const path = join(__dirname, '..', 'fixture', 'message-content.js');
+
+  replaceInFile(path, 'revert', 'change').then(() => {
+    spawn('--content=message-content.js server.js', out => {
+      if (out.match(/change message-content.js/)) {
+        replaceInFile(path, 'change', 'revert').then(() => console.log('changed to revert'));
+        return out2 => {
+          if (out2.match(/Restarting/)) {
+            replaceInFile(path, 'revert', 'change').then(() => console.log('changed back'));
+            return out3 => {
+              if (out3.match(/Restarting/)) {
+                return { exit: t.end.bind(t) };
+              }
+            };
+          }
+        };
+      }
+    });
   });
 });
