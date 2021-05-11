@@ -4,6 +4,7 @@ require('./clear');
 require('./cli-require');
 require('./cluster');
 require('./conceal');
+require('./content');
 require('./errors');
 require('./esmodule');
 require('./exit-code');

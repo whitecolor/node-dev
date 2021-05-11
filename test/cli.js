@@ -135,7 +135,7 @@ tap.test('--content=output', t => {
 tap.test('--content', t => {
   const {
     opts: { content }
-  } = cli(['node', 'bin/node-dev', '--content', 'test']);
+  } = cli(['node', 'bin/node-dev', '--content', '--', 'test']);
 
   t.same(content, [path.resolve(process.cwd())]);
   t.end();
