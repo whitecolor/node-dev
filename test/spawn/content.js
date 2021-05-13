@@ -1,45 +1,45 @@
+const { readFile, writeFile } = require('fs/promises');
+const { join } = require('path');
 const tap = require('tap');
 
-const { spawn, touchFile } = require('../utils');
-const { changeFile, revertFile, revertFileImmediate } = require('../change-file');
+const { spawn } = require('../utils');
 
-tap.test('should not restart with --content on file touch', t => {
-  const ps = spawn('--content server.js', out => {
-    if (out.match(/touch message.js/)) {
-      touchFile('message-content.js');
-      const exitTimeout = setTimeout(() => {
-        ps.kill('SIGTERM');
-        t.end();
-      }, 1500);
-      return out2 => {
-        clearTimeout(exitTimeout);
-        if (out2.match(/Restarting/)) {
-          return { exit: t.fail.bind(t) };
-        } else {
-          return { exit: t.end.bind(t) };
-        }
-      };
-    }
+const path = join(__dirname, '..', 'fixture', 'content', 'message.js');
+
+const replaceInFile = (path, from, to) =>
+  readFile(path, 'utf-8').then(contents => writeFile(path, contents.replace(from, to)));
+
+tap.test('Does not restart when content does not change', t => {
+  replaceInFile(path, 'revert', 'change').then(() => {
+    const ps = spawn('--content=content/message.js content', out => {
+      if (out.includes('change content/message.js')) {
+        setTimeout(() => {
+          ps.kill('SIGTERM');
+          t.end();
+        }, 1500);
+        replaceInFile(path, 'change', 'change');
+        return () => ({ exit: t.fail.bind(t) });
+      }
+    });
   });
 });
 
-tap.test('should restart the server with --content twice', t => {
-  revertFileImmediate('message-content.js');
-  spawn('--content server.js', out => {
-    console.log('out', out);
-    if (out.match(/change message-content.js/)) {
-      changeFile('message-content.js');
-      return out2 => {
-        console.log('out2', out2);
-        if (out2.match(/Restarting/)) {
-          revertFile('message-content.js');
-          return out3 => {
-            if (out3.match(/Restarting/)) {
-              return { exit: t.end.bind(t) };
-            }
-          };
-        }
-      };
-    }
+tap.test('Restarts when content changes', t => {
+  replaceInFile(path, 'revert', 'change').then(() => {
+    spawn('--content=content/message.js content', out => {
+      if (out.includes('change content/message.js')) {
+        replaceInFile(path, 'change', 'revert');
+        return out2 => {
+          if (out2.includes('revert content/message.js')) {
+            replaceInFile(path, 'revert', 'change');
+            return out3 => {
+              if (out3.match('change content/message.js')) {
+                return { exit: t.end.bind(t) };
+              }
+            };
+          }
+        };
+      }
+    });
   });
 });

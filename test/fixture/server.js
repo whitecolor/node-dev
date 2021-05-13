@@ -1,7 +1,6 @@
 const { createServer } = require('http');
 
 const message = require('./message');
-const content = require('./message-content');
 
 // Changes to this module should not cause a server restart:
 require('./ignored-module');
@@ -17,7 +16,6 @@ server
     const { address, port } = server.address();
     console.log('Server listening on %s:%s', address, port);
     console.log(message);
-    console.log(content);
   })
   .listen(0);
 
